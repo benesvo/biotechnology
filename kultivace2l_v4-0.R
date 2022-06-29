@@ -9,7 +9,7 @@ mu_poc <- 0.2   # maximální rùstová rychlost (na zaèátku kultivace)
 mu_kon <- 0.058   # minimální rùstová rychlost (na konci kultivace)
 par_k <- 0.2    # prohnutí køivky prùbìhu rùstové rychlosti
 
-OD <- 8.65
+OD <- 8.65      # OD inokula
 
 {
   #funkce pro optimalizaci doby kultivace (feedu) !!! v tele funkce zadej OD inokula!
@@ -50,9 +50,10 @@ OD <- 8.65
     return(abs(500 - data$feed_vol_total[nrow(data)]))
   }
   
-  
+  # optimalizace: vysledek je doba feedovani pro nadavkovani 500 ml
   opt <- optim(24, opt_fct, 
-               control = list(maxit = 100))
+               control = list(maxit = 100), 
+               method = "Brent", lower = 0, upper = 100)
   
   
   ##### SIMULACE KULTIVACE #####
@@ -65,6 +66,9 @@ OD <- 8.65
     data <- data.frame(data)
     DWT_0 <- OD / 1.8136 * 0.1 + 0.9  #odhadovane mnozstvi susiny na zacatku feedu
     
+    mu_min <- mu_poc - 2* (mu_poc - mu_kon) # rozdil beru 2*, protoze chci jen pulku sigmoidy
+    mu_max <- mu_poc
+    par_k <- par_k
     data$mu <- mu_min + (mu_max - mu_min) / (1 + exp(par_k * (data$cas_h - delka_kultivace)))
     
     data$DWT <- DWT_0  # pocatecni mnozstvi biomasy

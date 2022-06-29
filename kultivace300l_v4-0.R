@@ -7,7 +7,7 @@ mu_poc <- 0.2   # maximální rùstová rychlost (na zaèátku kultivace)
 mu_kon <- 0.058   # minimální rùstová rychlost (na konci kultivace)
 par_k <- 0.2    # prohnutí køivky prùbìhu rùstové rychlosti
 
-OD <- 4.5
+OD <- 4.5       # OD inokula
 
 {
   library(zoo)
@@ -44,7 +44,8 @@ OD <- 4.5
   
   # optimalizace: vysledek je doba feedovani pro nadavkovani 100 l
   opt <- optim(24, opt_fct, 
-               control = list(maxit = 100))
+               control = list(maxit = 100), 
+               method = "Brent", lower = 0, upper = 100)
   
   
   ##### SIMULACE KULTIVACE #####
@@ -55,6 +56,9 @@ OD <- 4.5
   data <- data.frame(data)
   DWT_0 <- OD / 1.8136 * 22.5 + 200  #odhadovane mnozstvi susiny na zacatku feedu; OD * 0.5 * objem inokula + odhadovaný zisk z batch
   
+  mu_min <- mu_poc - 2* (mu_poc - mu_kon) # rozdil beru 2*, protoze chci jen pulku sigmoidy
+  mu_max <- mu_poc
+  par_k <- par_k
   data$mu <- mu_min + (mu_max - mu_min) / (1 + exp(par_k * (data$cas_h - delka_kultivace)))
   data$DWT <- DWT_0  # pocatecni mnozstvi biomasy
   for(i in c(2: nrow(data))){ #samotna iterace rustu biomasy
@@ -71,6 +75,9 @@ OD <- 4.5
                       n = 10)
   data_appr <- data.frame(data_appr)
   names(data_appr)[1] <- "cas_h"
+  
+  # vypis delku feedovani:
+  cat("doba davkovani feedu: ", opt$par, " hod\n")
   
   # VYSLEDNA TABULKA 10 BODU:
   print(data_appr)

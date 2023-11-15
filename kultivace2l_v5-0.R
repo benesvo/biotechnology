@@ -5,14 +5,17 @@
 #funkce pro optimalizaci doby kultivace (feedu) 
 
 
-mu_poc <- 0.2   # maximální rùstová rychlost (na zaèátku kultivace)
-mu_kon <- 0.058   # minimální rùstová rychlost (na konci kultivace)
-par_k <- 0.2    # prohnutí køivky prùbìhu rùstové rychlosti
+mu_poc <- 0.2   # maxim?ln? r?stov? rychlost (na za??tku kultivace)
+mu_kon <- 0.048   # minim?ln? r?stov? rychlost (na konci kultivace)
+par_k <- 0.2    # prohnut? k?ivky pr?b?hu r?stov? rychlosti
 
 OD <- 8.65      # OD inokula
 
+par_vRPM <- 19.56   # prepocet "nacerpany objem feedu [ml]" >> "celkove otacky pumpy": par_vRPM
+                    # prepocet: data$feed_rot <- data$feed_vol_total * par_vRPM
+
 {
-  #funkce pro optimalizaci doby kultivace (feedu) !!! v tele funkce zadej OD inokula!
+  #funkce pro optimalizaci doby kultivace (feedu) !!!
   opt_fct <- function(delka_kultivace){
     # delka kultivace v hodinach
     
@@ -23,11 +26,11 @@ OD <- 8.65      # OD inokula
     data$cas_h <- data$cas / 360
     
     # odhadovane mnozstvi susiny na zacatku feedu
-    # zadej OD; vypocte se DWT jako OD / 1.8136 * objem inokula + odhadovaný zisk z batch
+    # zadej OD; vypocte se DWT jako OD / 1.8136 * objem inokula + odhadovany zisk z batch
+    # (pocitame s vyteznostnim koeficientem batch = 0.1)
     DWT_0 <- OD / 1.8136 * 0.1 + 0.9
     
     
-    #rustova rychlost se snizi z 0.2 na zacatku kultivace na 0.058 na konci (~ doubling time 3.5 - 12 h)
     mu_min <- mu_poc - 2* (mu_poc - mu_kon) # rozdil beru 2*, protoze chci jen pulku sigmoidy
     mu_max <- mu_poc
     par_k <- par_k
@@ -35,14 +38,16 @@ OD <- 8.65      # OD inokula
     
     
     
-    data$DWT <- DWT_0  # pocatecni mnozstvi biomasy
+    data$DWT <- DWT_0  # pocatecni mnozstvi biomasy z inokula + batch
     
+    # iterativni vypocet DWT v prubehu kultivace
     for(i in c(2: nrow(data))){
       data$DWT[i] <- data$DWT[i-1] * ((1 + data$mu[i]) ^ (1/360))
     }
     
     # mnozstvi feedu od zacatku (vypocteno z DWT)
-    data$feed_vol_total <- (data$DWT - data$DWT[1]) / 0.5 / 0.22
+    # narust DWT od zacatku / vyteznostni koeficient / koncentrace glc ve feedu
+    data$feed_vol_total <- (data$DWT - data$DWT[1]) / 0.55 / 0.22   
     
     
     
@@ -75,11 +80,15 @@ OD <- 8.65      # OD inokula
     for(i in c(2: nrow(data))){ #samotna iterace rustu biomasy
       data$DWT[i] <- data$DWT[i-1] * ((1 + data$mu[i]) ^ (1/3600))
     }
-    data$feed_vol_total <- (data$DWT - data$DWT[1]) / 0.5 / 0.22  #mnozstvi feedu od zacatku (vypocteno z DWT)
-    data$feed_rot <- data$feed_vol_total * 19.56 # a prepocet na otacky pumpy
+    data$feed_vol_total <- (data$DWT - data$DWT[1]) / 0.55 / 0.22  #mnozstvi feedu od zacatku (vypocteno z DWT)
+    data$feed_rot <- data$feed_vol_total * par_vRPM # a prepocet na otacky pumpy
     data$feed_speed <- c(0, diff(data$feed_vol_total)) * 60 #rychlost feedu [ml/min]
     #data$pump_value <- data$feed_speed / xxxxx  #rychlost pumpy [%]
   }
+  
+  # graf rustova rychlost
+  plot(mu~cas_h, data, type = "l",
+       xlab = "cas [h]", ylab = "rustova rychlost [1/h]")
   
   # graf rychlost feedu
   plot(feed_speed~cas_h, data, type = "l",
@@ -89,7 +98,7 @@ OD <- 8.65      # OD inokula
   model <- nls(feed_rot ~ a*cas_h^3 + b*cas_h^2 + c*cas_h + d, data, #chybi linearni clen!!! (naschval)
                start = list(a=0, b=0, c=0, d=0))
   
-  # graf
+  # graf fitted model vs. feed_vol_total
   plot(feed_rot~cas_h, data, type = "l",
        xlab = "cas [h]", ylab = "celkovy objem nacerpaneho feedu [otacky]")+
     lines(data$cas_h, predict(model), lty = "dashed", col = "red")
@@ -97,3 +106,4 @@ OD <- 8.65      # OD inokula
   cat("doba davkovani feedu: ", opt$par, " hod\n")
   print(coef(model))
 }
+
